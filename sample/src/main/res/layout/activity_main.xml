@@ -12,25 +12,4 @@
         android:layout_height="wrap_content"
         android:text="Hello World!" />
 
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:onClick="onAlipayEvent"
-        android:text="支付宝-APP支付"
-        android:textAllCaps="false" />
-
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:onClick="onWechatPayEvent"
-        android:text="微信-APP支付"
-        android:textAllCaps="false" />
-
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:onClick="onUnionPayEvent"
-        android:text="银联-APP支付"
-        android:textAllCaps="false" />
-
 </LinearLayout>

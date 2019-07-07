@@ -12,8 +12,14 @@ android {
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         ndk {
             // 配置ABI构建输出并将它们打包到APK中。
-            abiFilters "armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64", "mips", "mips64"
+            abiFilters "armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            // , "mips", "mips64"
         }
+        // Creates a placeholder property to use in the manifest.
+        manifestPlaceholders = [
+                JPUSH_APPKEY : "430e99414920e69a6f45cb60",// JPush上注册的包名对应的appkey.
+                JPUSH_CHANNEL: "developer-default" // 暂时填写默认值即可.
+        ]
     }
     buildTypes {
         release {

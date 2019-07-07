@@ -50,4 +50,9 @@ ext {
     runnerVersion = '1.0.2'
     rulesVersion = '0.5'
     espressoVersion = '3.0.2'
+
+    // amlzq library，Multiple module use
+    logVersion = '1.0.4'
+    utilsVersion = '1.0.4'
+    uiVersion = '1.0.0'
 }
