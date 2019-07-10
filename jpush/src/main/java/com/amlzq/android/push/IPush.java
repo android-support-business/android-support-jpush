@@ -9,6 +9,14 @@ import android.app.Activity;
 
 public interface IPush {
 
+    // Prefs key
+    /**
+     * @amlzq move to utils lib
+     */
+    public static final String PREFS_PUSH_START_TIME = "push_start_time";
+    public static final String PREFS_PUSH_END_TIME = "push_end_time";
+    public static final String PREFS_PUSH_DAYS_PER_WEEK = "push_days_per_week";
+
     /**
      * 初始化SDK<br>
      * application.create()中执行<br>

@@ -2,32 +2,36 @@ package com.amlzq.android.push;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
-import android.os.Handler;
 import android.os.Looper;
-import android.os.Message;
-import android.util.SparseArray;
+import android.text.TextUtils;
 import android.widget.Toast;
 
 import com.amlzq.android.ApplicationConfig;
+import com.amlzq.android.content.ContextHolder;
+import com.amlzq.android.jpush.JPushUtil;
+import com.amlzq.android.jpush.TagAliasOperatorHelper;
+import com.amlzq.android.jpush.TagAliasOperatorHelper.TagAliasBean;
 import com.amlzq.android.log.Log;
 
-import java.util.Locale;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
+import cn.jiguang.api.JCoreManager;
 import cn.jpush.android.api.JPushInterface;
-import cn.jpush.android.api.JPushMessage;
 
 /**
  * Created by amlzq on 2018/6/6.
- * Updated by amlzq on 2019/5/21.
+ * Updated by amlzq on 2019/7/10.
  * <p>
- * 极光推送集成库
- * <p>
- * from TagAliasOperatorHelper，
+ * 推送服务助手之
+ * 极光推送
  */
 
 public class PushHelper {
@@ -72,7 +76,7 @@ public class PushHelper {
     // =============================================================================================
 
     /**
-     * 务必在工程的Application类的 onCreate() 方法中注册推送服务
+     * 必须在Application#onCreate中注册推送服务
      */
     private void init(Context applicationContext) {
         Bundle bundle = getMetaDataBundle(applicationContext);
@@ -80,6 +84,9 @@ public class PushHelper {
         Log.d("JPUSH_CHANNEL: " + bundle.getString("JPUSH_CHANNEL"));
         JPushInterface.setDebugMode(ApplicationConfig.DEBUG); // 设置开启日志,发布时请关闭日志
         JPushInterface.init(applicationContext); // 初始化 JPush
+
+        // 打印极光推送初始化信息
+        Log.d("JPush debug state:" + JCoreManager.getDebugMode());
     }
 
     /**
@@ -103,335 +110,153 @@ public class PushHelper {
         return JPushInterface.isPushStopped(context);
     }
 
-    interface TAG_TYPE {
-        // Channel list
-        String SINA_WEIBO = "SINA_WEIBO";
+    /**
+     * @return 推送后台的设备注册ID
+     */
+    public String getRegistrationId() {
+        Context cxt = ContextHolder.getContext();
+        return JPushInterface.getRegistrationID(cxt);
     }
 
     // =============================================================================================
-    // 标签/别名
+    // 设置推送
+    // 标签，别名，手机号，通知栏样式，接收时间
     // =============================================================================================
 
-    public static int sequence = 1;
     /**
-     * 增加
+     * 设置允许接收通知时间
      */
-    public static final int ACTION_ADD = 1;
-    /**
-     * 覆盖
-     */
-    public static final int ACTION_SET = 2;
-    /**
-     * 删除部分
-     */
-    public static final int ACTION_DELETE = 3;
-    /**
-     * 删除所有
-     */
-    public static final int ACTION_CLEAN = 4;
-    /**
-     * 查询
-     */
-    public static final int ACTION_GET = 5;
-
-    public static final int ACTION_CHECK = 6;
-
-    public static final int DELAY_SEND_ACTION = 1;
-
-    public static final int DELAY_SET_MOBILE_NUMBER_ACTION = 2;
-
-    private SparseArray<Object> setActionCache = new SparseArray<Object>();
-
-    public Object get(int sequence) {
-        return setActionCache.get(sequence);
-    }
-
-    public Object remove(int sequence) {
-        return setActionCache.get(sequence);
-    }
-
-    public void put(int sequence, Object tagAliasBean) {
-        setActionCache.put(sequence, tagAliasBean);
-    }
-
-    public void handleAction(Context context, int sequence, String mobileNumber) {
-        put(sequence, mobileNumber);
-        Log.d("sequence:" + sequence + ",mobileNumber:" + mobileNumber);
-        JPushInterface.setMobileNumber(context, sequence, mobileNumber);
-    }
-
-    /**
-     * 处理设置tag
-     */
-    public void handleAction(Context context, int sequence, TagAliasBean tagAliasBean) {
-        init(context);
-        if (tagAliasBean == null) {
-            Log.w("tagAliasBean was null");
+    private void setPushTime(PushOptions options) {
+        int startTime = options.startTime;
+        int endTime = options.endTime;
+        if (startTime > endTime) {
+            Toast.makeText(ContextHolder.getContext(), "开始时间不能大于结束时间", Toast.LENGTH_SHORT).show();
             return;
         }
-        put(sequence, tagAliasBean);
-        if (tagAliasBean.isAliasAction) {
-            switch (tagAliasBean.action) {
-                case ACTION_GET:
-                    JPushInterface.getAlias(context, sequence);
-                    break;
-                case ACTION_DELETE:
-                    JPushInterface.deleteAlias(context, sequence);
-                    break;
-                case ACTION_SET:
-                    JPushInterface.setAlias(context, sequence, tagAliasBean.alias);
-                    break;
-                default:
-                    Log.w("unsupport alias action type");
-                    return;
-            }
-        } else {
-            switch (tagAliasBean.action) {
-                case ACTION_ADD:
-                    JPushInterface.addTags(context, sequence, tagAliasBean.tags);
-                    break;
-                case ACTION_SET:
-                    JPushInterface.setTags(context, sequence, tagAliasBean.tags);
-                    break;
-                case ACTION_DELETE:
-                    JPushInterface.deleteTags(context, sequence, tagAliasBean.tags);
-                    break;
-                case ACTION_CHECK:
-                    //一次只能check一个tag
-                    String tag = (String) tagAliasBean.tags.toArray()[0];
-                    JPushInterface.checkTagBindState(context, sequence, tag);
-                    break;
-                case ACTION_GET:
-                    JPushInterface.getAllTags(context, sequence);
-                    break;
-                case ACTION_CLEAN:
-                    JPushInterface.cleanTags(context, sequence);
-                    break;
-                default:
-                    Log.w("unsupport tag action type");
-                    return;
-            }
+        StringBuffer daysSB = new StringBuffer();
+        Set<Integer> days = new HashSet<Integer>();
+        if (options.saturday) {
+            days.add(0);
+            daysSB.append("0,");
         }
+        if (options.monday) {
+            days.add(1);
+            daysSB.append("1,");
+        }
+        if (options.tuesday) {
+            days.add(2);
+            daysSB.append("2,");
+        }
+        if (options.wednesday) {
+            days.add(3);
+            daysSB.append("3,");
+        }
+        if (options.thursday) {
+            days.add(4);
+            daysSB.append("4,");
+        }
+        if (options.friday) {
+            days.add(5);
+            daysSB.append("5,");
+        }
+        if (options.saturday) {
+            days.add(6);
+            daysSB.append("6,");
+        }
+
+        //调用JPush api设置Push时间
+        JPushInterface.setPushTime(ContextHolder.getContext(), days, startTime, endTime);
+
+        SharedPreferences preferences = ContextHolder.getContext().
+                getSharedPreferences(ApplicationConfig.SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(IPush.PREFS_PUSH_DAYS_PER_WEEK, daysSB.toString());
+        editor.putInt(IPush.PREFS_PUSH_START_TIME, startTime);
+        editor.putInt(IPush.PREFS_PUSH_END_TIME, endTime);
+        editor.commit();
+        Toast.makeText(ContextHolder.getContext(), "设置成功", Toast.LENGTH_SHORT).show();
     }
 
     // =============================================================================================
-    // 处理消息
+    // 标签
     // =============================================================================================
 
-    private String getActionStr(int actionType) {
-        switch (actionType) {
-            case ACTION_ADD:
-                return "add";
-            case ACTION_SET:
-                return "set";
-            case ACTION_DELETE:
-                return "delete";
-            case ACTION_GET:
-                return "get";
-            case ACTION_CLEAN:
-                return "clean";
-            case ACTION_CHECK:
-                return "check";
+    /**
+     * 添加用户标签,推送时按照标签来筛选
+     * 一般设置为用户群属性
+     */
+    public void addTag(String... tags) {
+        Context cxt = ContextHolder.getContext();
+        Set<String> tagSet = new LinkedHashSet<String>();
+        for (String tag : tags) {
+            tagSet.add(tag);
         }
-        return "unkonw operation";
-    }
-
-    private String getRetryStr(boolean isAliasAction, int actionType, int errorCode) {
-        String str = "Failed to %s %s due to %s. Try again after 60s.";
-        str = String.format(Locale.ENGLISH, str, getActionStr(actionType), (isAliasAction ? "alias" : " tags"), (errorCode == 6002 ? "timeout" : "server too busy"));
-        return str;
-    }
-
-    final Handler delaySendHandler = new Handler(new Handler.Callback() {
-        @Override
-        public boolean handleMessage(Message msg) {
-            switch (msg.what) {
-                case DELAY_SEND_ACTION:
-                    if (msg.obj != null && msg.obj instanceof TagAliasBean) {
-                        Log.i("on delay time");
-                        sequence++;
-                        TagAliasBean tagAliasBean = (TagAliasBean) msg.obj;
-                        setActionCache.put(sequence, tagAliasBean);
-//                        if (context != null) {
-//                            handleAction(context, sequence, tagAliasBean);
-//                        } else {
-                        Log.e("#unexcepted - context was null");
-//                        }
-                    } else {
-                        Log.w("#unexcepted - msg obj was incorrect");
-                    }
-                    break;
-                case DELAY_SET_MOBILE_NUMBER_ACTION:
-                    if (msg.obj != null && msg.obj instanceof String) {
-                        Log.i("retry set mobile number");
-                        sequence++;
-                        String mobileNumber = (String) msg.obj;
-                        setActionCache.put(sequence, mobileNumber);
-//                        if (context != null) {
-//                            handleAction(context, sequence, mobileNumber);
-//                        } else {
-                        Log.e("#unexcepted - context was null");
-//                        }
-                    } else {
-                        Log.w("#unexcepted - msg obj was incorrect");
-                    }
-                    break;
-            }
-            return true;
-        }
-    });
-
-    public void onTagOperatorResult(Context context, JPushMessage jPushMessage) {
-        int sequence = jPushMessage.getSequence();
-        Log.d("action - onTagOperatorResult, sequence:" + sequence + ",tags:" + jPushMessage.getTags());
-        Log.d("tags size:" + jPushMessage.getTags().size());
-        init(context);
-        //根据sequence从之前操作缓存中获取缓存记录
-        TagAliasBean tagAliasBean = (TagAliasBean) setActionCache.get(sequence);
-        if (tagAliasBean == null) {
-            showToast("获取缓存记录失败", context);
-            return;
-        }
-        if (jPushMessage.getErrorCode() == 0) {
-            Log.i("action - modify tag Success,sequence:" + sequence);
-            setActionCache.remove(sequence);
-            String logs = getActionStr(tagAliasBean.action) + " tags success";
-            Log.i(logs);
-//            showToast(logs, context);
-        } else {
-            String logs = "Failed to " + getActionStr(tagAliasBean.action) + " tags";
-            if (jPushMessage.getErrorCode() == 6018) {
-                //tag数量超过限制,需要先清除一部分再add
-                logs += ", tags is exceed limit need to clean";
-            }
-            logs += ", errorCode:" + jPushMessage.getErrorCode();
-            Log.e(logs);
-            if (!retryActionIfNeeded(context, jPushMessage.getErrorCode(), tagAliasBean)) {
-                showToast(logs, context);
-            }
-        }
-    }
-
-    public void onCheckTagOperatorResult(Context context, JPushMessage jPushMessage) {
-        int sequence = jPushMessage.getSequence();
-        Log.i("action - onCheckTagOperatorResult, sequence:" + sequence + ",checktag:" + jPushMessage.getCheckTag());
-        init(context);
-        //根据sequence从之前操作缓存中获取缓存记录
-        TagAliasBean tagAliasBean = (TagAliasBean) setActionCache.get(sequence);
-        if (tagAliasBean == null) {
-            showToast("获取缓存记录失败", context);
-            return;
-        }
-        if (jPushMessage.getErrorCode() == 0) {
-            Log.i("tagBean:" + tagAliasBean);
-            setActionCache.remove(sequence);
-            String logs = getActionStr(tagAliasBean.action) + " tag " + jPushMessage.getCheckTag() + " bind state success,state:" + jPushMessage.getTagCheckStateResult();
-            Log.i(logs);
-//            showToast(logs, context);
-        } else {
-            String logs = "Failed to " + getActionStr(tagAliasBean.action) + " tags, errorCode:" + jPushMessage.getErrorCode();
-            Log.e(logs);
-            if (!retryActionIfNeeded(context, jPushMessage.getErrorCode(), tagAliasBean)) {
-                showToast(logs, context);
-            }
-        }
+        tagSet = JPushInterface.filterValidTags(tagSet);
+        if (tagSet.isEmpty()) return;
     }
 
     /**
-     * 操作别名后的结果
+     * 将之前添加的标签中的一个或多个删除。
      *
-     * @param context
-     * @param jPushMessage
+     * @param tags 用户标签
      */
-    public void onAliasOperatorResult(Context context, JPushMessage jPushMessage) {
-        int sequence = jPushMessage.getSequence();
-        Log.i("action - onAliasOperatorResult, sequence:" + sequence + ",alias:" + jPushMessage.getAlias());
-        init(context);
-        //根据sequence从之前操作缓存中获取缓存记录
-        TagAliasBean tagAliasBean = (TagAliasBean) setActionCache.get(sequence);
-        if (tagAliasBean == null) {
-            showToast("获取缓存记录失败", context);
+    public void deleteTag(String... tags) {
+        Context cxt = ContextHolder.getContext();
+    }
+
+    // =============================================================================================
+    // 别名
+    // =============================================================================================
+
+    /**
+     * 设置用户别名,每个用户只能指定一个别名
+     * 在用户登录后设置别名为userId
+     */
+    public void addAlias(String alias) {
+        Context context = ContextHolder.getContext();
+        if (TextUtils.isEmpty(alias)) {
+            Toast.makeText(context, "Alias is empty", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (jPushMessage.getErrorCode() == 0) {
-            Log.i("action - modify alias Success,sequence:" + sequence);
-            setActionCache.remove(sequence);
-            String logs = getActionStr(tagAliasBean.action) + " alias success";
-            Log.i(logs);
-//            showToast(logs, context);
-        } else {
-            String logs = "Failed to " + getActionStr(tagAliasBean.action) + " alias, errorCode:" + jPushMessage.getErrorCode();
-            Log.e(logs);
-            if (!retryActionIfNeeded(context, jPushMessage.getErrorCode(), tagAliasBean)) {
-                showToast(logs, context);
-            }
+        if (!JPushUtil.isValidTagAndAlias(alias)) {
+            Toast.makeText(context, "Invalid format", Toast.LENGTH_SHORT).show();
+            return;
         }
+        TagAliasBean aliasBean = new TagAliasBean();
+        aliasBean.action = TagAliasOperatorHelper.ACTION_SET;
+        TagAliasOperatorHelper.sequence++;
+        aliasBean.alias = alias;
+        aliasBean.isAliasAction = true;
+        TagAliasOperatorHelper.getInstance().handleAction(context, TagAliasOperatorHelper.sequence, aliasBean);
     }
 
-    //设置手机号码回调
-    public void onMobileNumberOperatorResult(Context context, JPushMessage jPushMessage) {
-        int sequence = jPushMessage.getSequence();
-        Log.i("action - onMobileNumberOperatorResult, sequence:" + sequence + ",mobileNumber:" + jPushMessage.getMobileNumber());
-        init(context);
-        if (jPushMessage.getErrorCode() == 0) {
-            Log.i("action - set mobile number Success,sequence:" + sequence);
-            setActionCache.remove(sequence);
-        } else {
-            String logs = "Failed to set mobile number, errorCode:" + jPushMessage.getErrorCode();
-            Log.e(logs);
-            if (!retrySetMObileNumberActionIfNeeded(context, jPushMessage.getErrorCode(), jPushMessage.getMobileNumber())) {
-                showToast(logs, context);
-            }
-        }
+    public void checkAlias() {
+        Context context = ContextHolder.getContext();
+        TagAliasBean aliasBean = new TagAliasBean();
+        aliasBean.action = TagAliasOperatorHelper.ACTION_GET;
+        TagAliasOperatorHelper.sequence++;
+        aliasBean.isAliasAction = true;
+        TagAliasOperatorHelper.getInstance().handleAction(context, TagAliasOperatorHelper.sequence, aliasBean);
     }
 
-    private boolean retryActionIfNeeded(Context context, int errorCode, TagAliasBean tagAliasBean) {
-        if (!isConnected(context)) {
-            Log.w("no network");
-            return false;
-        }
-        //返回的错误码为6002 超时,6014 服务器繁忙,都建议延迟重试
-        if (errorCode == 6002 || errorCode == 6014) {
-            Log.d("need retry");
-            if (tagAliasBean != null) {
-                Message message = new Message();
-                message.what = DELAY_SEND_ACTION;
-                message.obj = tagAliasBean;
-                delaySendHandler.sendMessageDelayed(message, 1000 * 60);
-                String logs = getRetryStr(tagAliasBean.isAliasAction, tagAliasBean.action, errorCode);
-                showToast(logs, context);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean retrySetMObileNumberActionIfNeeded(Context context, int errorCode, String mobileNumber) {
-        if (!isConnected(context)) {
-            Log.w("no network");
-            return false;
-        }
-        //返回的错误码为6002 超时,6024 服务器内部错误,建议稍后重试
-        if (errorCode == 6002 || errorCode == 6024) {
-            Log.d("need retry");
-            Message message = new Message();
-            message.what = DELAY_SET_MOBILE_NUMBER_ACTION;
-            message.obj = mobileNumber;
-            delaySendHandler.sendMessageDelayed(message, 1000 * 60);
-            String str = "Failed to set mobile number due to %s. Try again after 60s.";
-            str = String.format(Locale.ENGLISH, str, (errorCode == 6002 ? "timeout" : "server internal error”"));
-            showToast(str, context);
-            return true;
-        }
-        return false;
-
+    /**
+     * 在用户登出后删除别名
+     */
+    public void deleteAlias() {
+        Context context = ContextHolder.getContext();
+        TagAliasBean aliasBean = new TagAliasBean();
+        aliasBean.action = TagAliasOperatorHelper.ACTION_DELETE;
+        TagAliasOperatorHelper.sequence++;
+        aliasBean.isAliasAction = true;
+        TagAliasOperatorHelper.getInstance().handleAction(context, TagAliasOperatorHelper.sequence, aliasBean);
     }
 
     // =============================================================================================
     // 无法归类的方法
     // =============================================================================================
 
-    public void showToast(final String toast, final Context context) {
+    @Deprecated
+    public void showToast_(final String toast, final Context context) {
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -442,9 +267,12 @@ public class PushHelper {
         }).start();
     }
 
+    /**
+     * @amlzq move to utils lib
+     */
     public boolean isConnected(Context context) {
-        ConnectivityManager conn = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo info = conn.getActiveNetworkInfo();
+        ConnectivityManager manager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info = manager.getActiveNetworkInfo();
         return (info != null && info.isConnected());
     }
 
