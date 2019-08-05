@@ -17,6 +17,7 @@ JPush Android SDK v3.3.0
 ```
 
 ### 本集成库使用说明
+- 参看Sample
 
 ### 工程结构
 * ./jpush
