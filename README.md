@@ -16,6 +16,8 @@ JPush Android SDK v3.3.0
 接入时间: 2019-05-21
 ```
 
+- [报错xml missing required service:cn.jpush.android.service.JCommonService](https://blog.csdn.net/xueshao110/article/details/94355062)
+
 ### 本集成库使用说明
 
 ### 工程结构
