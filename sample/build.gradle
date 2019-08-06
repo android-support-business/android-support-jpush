@@ -37,8 +37,8 @@ dependencies {
 
     // amlzq support library remote dependencies
     implementation "com.amlzq.android:log:${rootProject.ext.logVersion}"
+    implementation "com.amlzq.android:annotations:${rootProject.ext.annotationsVersion}"
     implementation "com.amlzq.android:utils:${rootProject.ext.utilsVersion}"
 
     implementation project(':jpush')
-
 }
