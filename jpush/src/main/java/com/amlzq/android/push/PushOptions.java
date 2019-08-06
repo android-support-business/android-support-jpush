@@ -18,7 +18,6 @@ public class PushOptions implements Parcelable {
     public boolean friday;
     public boolean saturday; // 周六
 
-
     protected PushOptions(Parcel in) {
         startTime = in.readInt();
         endTime = in.readInt();
@@ -60,4 +59,5 @@ public class PushOptions implements Parcelable {
         dest.writeByte((byte) (friday ? 1 : 0));
         dest.writeByte((byte) (saturday ? 1 : 0));
     }
+
 }
